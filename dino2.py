@@ -328,7 +328,7 @@ class Scoreboard():
 
 
 def draw_window(screen, dinos, cacti, clouds, base, score, gen):
-
+  
     screen.fill(background_col)
     for cactus in cacti: 
         cactus.draw(screen)
@@ -384,6 +384,7 @@ def eval_genomes(genomes, config):
     #Ptera.containers = pteras
     Cloud.containers = clouds
     
+    """
     temp_images,temp_rect = load_sprite_sheet('numbers.png',12,1,11,int(11*6/5),-1)
     HI_image = pygame.Surface((22,int(11*6/5)))
     HI_rect = HI_image.get_rect()
@@ -393,30 +394,37 @@ def eval_genomes(genomes, config):
     HI_image.blit(temp_images[11],temp_rect)
     HI_rect.top = height*0.1
     HI_rect.left = width*0.73
+    """
 
     #pygame.time.set_timer(USEREVENT+2, random.randrange(2000, 3000))
     #hit_counter = 0 
     running = True 
     score = 0 
-    while running: 
+    while running and len(dinos) > 0: 
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 pygame.quit()
                 quit()
-                sys.exit()
+                break
+                
         
         for x, dino in enumerate(dinos): 
-            ge[x].fitness += 1
+            ge[x].fitness += 0.1
             dino.update()
+            #fix output 
+            output = nets[dinos.index(dino)].activate((dino.rect.left, abs(dino.rect.left - obstacles[0].rect.left), dino.rect.bottom - obstacles[0].rect.bottom))
 
-            output = nets[dinos.index(dino)].activate((dino.rect.left, abs(dino.rect.left - obstacles[0].rect.left)))
-
+            #work on this 
             if output[0] > 0.5: 
                 dino.isJumping = True 
                 dino.movement[1] = -1*dino.jumpSpeed
-            
+            elif output[0] < -0.5: 
+                dino.isDucking = True
+           
+    
+        new_ground.update()
             
 
 
@@ -426,7 +434,8 @@ def eval_genomes(genomes, config):
         for obstacle in obstacles: 
             obstacle.update()
             for dino in dinos: 
-                if obstacle.collide(dino): 
+                if obstacle.collide(dino) or dino.rect.bottom < 0: 
+                    dino.isDead = True #to weed out the losers
                     ge[dinos.index(dino)].fitness -= 1 
                     nets.pop(dinos.index(dino))
                     ge.pop(dinos.index(dino))
@@ -434,7 +443,7 @@ def eval_genomes(genomes, config):
             #if dino.rect.left > obstacle.rect.left:
             #        add_obstacle = True 
                    
-            if obstacle.rect.left < 0:
+            if obstacle.rect.left < -obstacle.image.get_width():
                 add_obstacle = True 
                 rem.append(obstacle)
                 
@@ -445,14 +454,21 @@ def eval_genomes(genomes, config):
             for genome in ge: 
                 genome.fitness+=5 
     
-            #r = random.randrange(0,2)
-            #if r == 0: 
-            obstacles.append(Cactus(random.randint(50,100)))
-            #if r == 1: 
-            #    obstacles.append(Ptera(random.randint(50,100))) 
+            r = random.randrange(0,2)
+            if r == 0: 
+                obstacles.append(Cactus(random.randint(50,100)))
+            if r == 1: 
+                obstacles.append(Ptera(random.randint(50,100))) 
 
         for r in rem: 
             obstacles.remove(r)
+
+        for dino in dinos: 
+            if dino.isDead: 
+                nets.pop(dinos.index(dino))
+                ge.pop(dinos.index(dino))
+                dinos.pop(dinos.index(dino))
+
 
        
 
@@ -460,8 +476,8 @@ def eval_genomes(genomes, config):
         
         #playerDino.update()
 
-        clouds.update()
-        new_ground.update()
+        #clouds.update()
+        #new_ground.update()
         #scb.update(playerDino.score)
         
         #if pygame.display.get_surface() != None:
@@ -481,7 +497,7 @@ def run(config_file):
                          config_file)
 
     # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
+    p = neat.population.Population(config)
 
     # Add a stdout reporter to show progress in the terminal.
     p.add_reporter(neat.StdOutReporter(True))
