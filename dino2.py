@@ -7,6 +7,9 @@ from pygame import *
 
 pygame.init()
 
+pygame.font.init()
+STAT_FONT = pygame.font.SysFont("comicsans", 50)
+
 scr_size = (width,height) = (600,150)
 FPS = 60
 gravity = 0.6
@@ -15,6 +18,8 @@ white = (255,255,255)
 background_col = (235,235,235)
 
 high_score = 0
+
+gen = 0 
 
 screen = pygame.display.set_mode(scr_size)
 clock = pygame.time.Clock()
@@ -231,6 +236,7 @@ class Ptera():
         self.rect = self.surf.get_rect()
         self.ptera_height = [height*0.80,height*0.75,height*0.50]
         self.rect.centery = self.ptera_height[random.randrange(0,3)]
+        self.rect.bottom =  self.rect.centery
         self.rect.left = width + self.rect.width 
         self.movement = [-1*speed,0]
         self.index = 0
@@ -321,17 +327,272 @@ class Scoreboard():
         self.temprect.left = 0
 
 
-def draw_window(screen, dino, cacti, clouds, base, score):
+def draw_window(screen, dinos, cacti, clouds, base, score, gen):
 
     screen.fill(background_col)
     for cactus in cacti: 
         cactus.draw(screen)
+
+    for dino in dinos: 
+        dino.draw()
     base.draw()
-    dino.draw()
-    score.draw()
+    #score.draw()
+    score_label = STAT_FONT.render("Score: " + str(score),1,(255,255,255))
+    screen.blit(score_label, (600 - score_label.get_width() - 15, 10))
+    
+    score_label = STAT_FONT.render("Alive: " + str(len(dinos)),1,(255,255,255))
+    screen.blit(score_label, (10, 50))
+
+    score_label = STAT_FONT.render("Gens: " + str(gen-1),1,(255,255,255))
+    screen.blit(score_label, (10, 10))
+    
     pygame.display.update()
 
+def eval_genomes(genomes, config): 
+    
+    global gen 
+    gen+=1
 
+    nets = [] 
+    ge = [] 
+    dinos  = []
+
+    for genome_id, genome in genomes: 
+        genome.fitness = 0 
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
+        dinos.append(Dino(44, 47))
+        ge.append(genome)
+
+
+    gamespeed = 4
+    
+   # playerDino = Dino(44,47)
+    new_ground = Ground(-1*gamespeed)
+    #scb = Scoreboard()
+    obstacles = []
+
+    obstacles.append(Cactus(100))
+    
+    #cacti = pygame.sprite.Group()
+    #pteras = pygame.sprite.Group()
+    clouds = pygame.sprite.Group()
+    last_obstacle = pygame.sprite.Group()
+
+    
+    #Cactus.containers = cacti
+    #Ptera.containers = pteras
+    Cloud.containers = clouds
+    
+    temp_images,temp_rect = load_sprite_sheet('numbers.png',12,1,11,int(11*6/5),-1)
+    HI_image = pygame.Surface((22,int(11*6/5)))
+    HI_rect = HI_image.get_rect()
+    HI_image.fill(background_col)
+    HI_image.blit(temp_images[10],temp_rect)
+    temp_rect.left += temp_rect.width
+    HI_image.blit(temp_images[11],temp_rect)
+    HI_rect.top = height*0.1
+    HI_rect.left = width*0.73
+
+    #pygame.time.set_timer(USEREVENT+2, random.randrange(2000, 3000))
+    #hit_counter = 0 
+    running = True 
+    score = 0 
+    while running: 
+        clock.tick(FPS)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                quit()
+                sys.exit()
+        
+        for x, dino in enumerate(dinos): 
+            ge[x].fitness += 1
+            dino.update()
+
+            output = nets[dinos.index(dino)].activate((dino.rect.left, abs(dino.rect.left - obstacles[0].rect.left)))
+
+            if output[0] > 0.5: 
+                dino.isJumping = True 
+                dino.movement[1] = -1*dino.jumpSpeed
+            
+            
+
+
+
+        add_obstacle = False 
+        rem = [] 
+        for obstacle in obstacles: 
+            obstacle.update()
+            for dino in dinos: 
+                if obstacle.collide(dino): 
+                    ge[dinos.index(dino)].fitness -= 1 
+                    nets.pop(dinos.index(dino))
+                    ge.pop(dinos.index(dino))
+                    dinos.pop(dinos.index(dino))
+            #if dino.rect.left > obstacle.rect.left:
+            #        add_obstacle = True 
+                   
+            if obstacle.rect.left < 0:
+                add_obstacle = True 
+                rem.append(obstacle)
+                
+            
+
+        if add_obstacle: 
+            score += 1
+            for genome in ge: 
+                genome.fitness+=5 
+    
+            #r = random.randrange(0,2)
+            #if r == 0: 
+            obstacles.append(Cactus(random.randint(50,100)))
+            #if r == 1: 
+            #    obstacles.append(Ptera(random.randint(50,100))) 
+
+        for r in rem: 
+            obstacles.remove(r)
+
+       
+
+
+        
+        #playerDino.update()
+
+        clouds.update()
+        new_ground.update()
+        #scb.update(playerDino.score)
+        
+        #if pygame.display.get_surface() != None:
+        draw_window(screen, dinos, obstacles, clouds, new_ground, score, gen)
+
+#main()
+
+
+def run(config_file):
+    """
+    runs the NEAT algorithm to train a neural network to play flappy bird.
+    :param config_file: location of config file
+    :return: None
+    """
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_file)
+
+    # Create the population, which is the top-level object for a NEAT run.
+    p = neat.Population(config)
+
+    # Add a stdout reporter to show progress in the terminal.
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    #p.add_reporter(neat.Checkpointer(5))
+
+    # Run for up to 50 generations.
+    winner = p.run(eval_genomes, 50)
+
+    # show final stats
+    print('\nBest genome:\n{!s}'.format(winner))
+
+
+if __name__ == '__main__':
+    # Determine path to configuration file. This path manipulation is
+    # here so that the script will run successfully regardless of the
+    # current working directory.
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config-feedforward.txt')
+    run(config_path)
+
+"""
+
+def main(): 
+    gamespeed = 4
+    playerDino = Dino(44,47)
+    new_ground = Ground(-1*gamespeed)
+    scb = Scoreboard()
+    obstacles = []
+
+    obstacles.append(Cactus(100))
+    
+    #cacti = pygame.sprite.Group()
+    #pteras = pygame.sprite.Group()
+    clouds = pygame.sprite.Group()
+    last_obstacle = pygame.sprite.Group()
+
+    
+    #Cactus.containers = cacti
+    #Ptera.containers = pteras
+    Cloud.containers = clouds
+    
+    temp_images,temp_rect = load_sprite_sheet('numbers.png',12,1,11,int(11*6/5),-1)
+    HI_image = pygame.Surface((22,int(11*6/5)))
+    HI_rect = HI_image.get_rect()
+    HI_image.fill(background_col)
+    HI_image.blit(temp_images[10],temp_rect)
+    temp_rect.left += temp_rect.width
+    HI_image.blit(temp_images[11],temp_rect)
+    HI_rect.top = height*0.1
+    HI_rect.left = width*0.73
+
+    pygame.time.set_timer(USEREVENT+2, random.randrange(2000, 3000))
+    hit_counter = 0 
+    running = True 
+    while running: 
+        clock.tick(FPS)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                quit()
+                sys.exit()
+
+
+
+        add_obstacle = False 
+        rem = [] 
+        for obstacle in obstacles: 
+            obstacle.update()
+            if obstacle.collide(playerDino): 
+                pass 
+            
+            #if obstacle.rect.left < 0: 
+            #    rem.append(obstacle)
+            
+            if playerDino.rect.left > obstacle.rect.left:
+                
+                rem.append(obstacle)
+                add_obstacle = True 
+
+            
+
+        if add_obstacle: 
+            r = random.randrange(0,2)
+            if r == 0: 
+                obstacles.append(Cactus(100))
+            if r == 1: 
+                obstacles.append(Ptera(100)) 
+
+        for r in rem: 
+            obstacles.remove(r)
+
+        
+        playerDino.update()
+
+        clouds.update()
+        new_ground.update()
+        scb.update(playerDino.score)
+        
+        if pygame.display.get_surface() != None:
+            draw_window(screen, playerDino, obstacles, clouds, new_ground, scb)
+
+main()
+
+
+
+"""
+
+"""
 def main(): 
     gamespeed = 4
     playerDino = Dino(44,47)
@@ -409,3 +670,5 @@ def main():
             draw_window(screen, playerDino, obstacles, clouds, new_ground, scb)
 
 main()
+
+"""
