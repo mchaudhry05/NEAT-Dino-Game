@@ -18,4 +18,5 @@ python3 dino_game.py #to run game
 
 # Acknowledgment 
 Some of the code for the game was modified and adapted from: https://github.com/shivamshekhar/Chrome-T-Rex-Rush.
-
+The project was inspired from Tech with Tim's verison on using python-neat on Flappy Bird, you can check that out here: 
+https://github.com/techwithtim/NEAT-Flappy-Bird/blob/master/flappy_bird.py. 
