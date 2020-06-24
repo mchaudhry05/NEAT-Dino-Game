@@ -1,5 +1,5 @@
 # NEAT-Dino-Game
-This project is coded in Python utilizing the python-neat module in python. The AI in learns how to play the Google Dino game: this involves learning when to duck, when to jump, and when to do nothing (this took me a long time till I realize there were three outputs not two). 
+This project is coded in Python utilizing the python-neat module in python. The AI learns how to play the Google Dino game: this involves learning when to duck, when to jump, and when to do nothing (this took me a long time till I realized there were actually three outputs not two). 
 
 # Watch it in Action
 ![Demo of Dino teaching itself how to play the game!](images/demo.gif)
